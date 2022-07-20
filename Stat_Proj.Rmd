@@ -1,0 +1,921 @@
+---
+title: "Classification Project"
+author: "Mihalis Galanakis"
+date: "6/2/2022"
+output:
+  word_document: default
+  html_document:
+    df_print: paged
+  pdf_document: default
+---
+**Objective**
+```{r}
+# Objective: The data in the folder named data.txt refer to counts from different variables in a population of women, aiming to gain useful insights and predict the ones that will develop diabetes in due time
+```  
+**Read in the data**  
+```{r}
+data <- read.table('C:/Users/mihal/OneDrive/data.txt',sep=",")
+```  
+**Descriptive statistics**  
+```{r}
+str(data)
+dim(data)
+summary(data)
+colnames(data) <- c("t.pregnant","plasma","bl.press","tr.thick","serum.ins","bmi","diab","age","class")
+head(data,5)
+tail(data,5)
+
+class <- data$class
+t.pregnant <- data$t.pregnant
+
+
+expl_data <- data[,2:8] 
+# We assume that the zeros in the variable times.pregnant are not missing, hence we don't replace zeros with "NA"
+
+head(expl_data,10)
+expl_data[expl_data==0] <- NA 
+# Replace the zeros with "NA"
+
+df <- data.frame(t.pregnant,expl_data,class) 
+# Create the transformed dataframe
+head(df,5) 
+# View the first 5 obs of the df
+tail(df,5) 
+# View the last 5 obs of the df
+```  
+**Pairwise colorful plots**  
+```{r}
+cols <- character(nrow(df))
+cols[] <- "black"
+cols[df$class %in% c(0,1)] <- c("blue","red")
+pairs(df[,-9],col=cols)
+# We observe that there's no conspicuous discrimination available
+```  
+**Data visualizations using package naniar**  
+```{r}
+library(naniar)
+gg_miss_var(df)
+# The other package that can be used is the package naniar developped by Nick Tierney’s and which is based on ggplot. Naniar provides 
+# principled, tidy ways to summarise, visualise, and manipulate missing data with minimal deviations from the workflows in ggplot2 and 
+# tidy data.
+
+vis_miss(df, sort_miss = TRUE) 
+# As VIM package has matrix plot, similarly naniar has the var_miss() function. It provides a summary of whether the data is missing 
+# (in black) or not. It also provides the percentage of missing values in each column.
+```  
+**Data visualizations using package VIM**  
+```{r}
+library(VIM)
+res1 <- summary(aggr(df,sortVar=TRUE))$combinations
+# The function VIM aggr calculates and represents the number of missing entries in each variable and for certain combinations of 
+# variables (which tend to be missing simultaneously).
+
+res2 <- summary(aggr(df,prop=TRUE,combined=TRUE))$combinations
+# The graph represents the pattern, with blue for observed and red for missing.
+```  
+**Most frequent combination of the variables**  
+```{r}
+head(res1[rev(order(res1[,2])),])
+# We can see that the combination which is the most frequent is the one where all the variables are observed (392 values).
+# Then, the second one is the one where variable 4 (which corresponds to tr.thick) and variable 5(which corresponds to serum.ins) are 
+# simultaneously missing (192 rows). 1 stands for the variables missing while 0 stands for the observed ones! 
+```  
+**More data visualizations using package VIM**  
+```{r}
+matrixplot(df, sortby = 9)
+# The VIM function matrixplot creates a matrix plot in which all cells of a data matrix are visualized by rectangles. Available data 
+# is coded according to a continuous color scheme (gray scale), while missing/imputed data is visualized by a clearly distinguishable 
+# color (red). If you use Rstudio the plot is not interactive (there are the warnings), but if you use R directly, you can click on a 
+# column of your choice: the rows are sorted (decreasing order) of the values of this column. This is useful to check if there is an 
+# association between the value of a variable and the missingness of another one.
+# Here, the variable selected to sort by, is variable 9 (which refers to class!)
+
+
+marginplot(df[,c("tr.thick","serum.ins")])
+# Boxplots for available and missing/imputed data, as well as univariate scatterplots for missing/imputed values in one variable are 
+# shown in the plot margins. Imputed values in either of the variables are highlighted in the scatterplot.
+# Furthermore, the frequencies of the missing/imputed values can be displayed by a number (lower left of the plot). The number in the 
+# lower left corner is the number of observations that are missing/imputed in both variables.
+# We can see that the distribution of tr.thick is the same when serum.ins is observed and when serum.ins is missing. If the two boxplots
+# (red and blue) would have been very different it would imply that when serum.ins is missing the values of tr.thick can be very high or 
+# very low which lead to suspect the MAR hypothesis.
+```  
+**Further data visualizations using ggplot2 package**  
+```{r}
+library(ggplot2)
+ggplot(df, 
+       aes(x = tr.thick, 
+           y = class)) + 
+  geom_miss_point() + 
+  facet_wrap(~data$class)+ 
+  theme_dark()
+# The function geom_miss_point() is close to the margin plot function of VIM but within the ggplot framework.
+
+
+ggplot(df, 
+       aes(x = serum.ins, 
+           y = class)) + 
+  geom_miss_point() + 
+  facet_wrap(~data$class)+ 
+  theme_dark()
+
+
+ggplot( bind_shadow(df),
+        aes(x = t.pregnant,
+            fill = serum.ins_NA)) + 
+  geom_density(alpha=0.5)
+# We can plot the distribution of t.pregnant, plotting for values of t.pregnant when serum.ins is missing, and when it is not missing.
+
+
+ggplot( bind_shadow(df),
+        aes(x = tr.thick,
+            fill = serum.ins_NA)) + 
+  geom_density(alpha=0.5)
+# We can plot the distribution of tr.thick, plotting for values of tr.thick when serum.ins is missing, and when it is not missing.
+
+ggplot( bind_shadow(df),
+        aes(x = t.pregnant,
+            fill = tr.thick_NA)) + 
+  geom_density(alpha=0.5)
+# We can plot the distribution of t.pregnant, plotting for values of t.pregnant when tr.thick is missing, and when it is not missing.
+
+ggplot( bind_shadow(df),
+        aes(x = class,
+            fill = tr.thick_NA)) + 
+  geom_density(alpha=0.5)
+# We can plot the distribution of class, plotting for values of class when tr.thick is missing, and when it is not missing.
+
+ggplot( bind_shadow(df),
+        aes(x = class,
+            fill = serum.ins_NA)) + 
+  geom_density(alpha=0.5)
+# We can plot the distribution of class, plotting for values of class when serum.ins is missing, and when it is not missing.
+```  
+**Insights regarding the missing values**  
+```{r}
+pct_miss(df)
+# Percentage of the total missing values in the data set
+
+n_miss(df)
+# Number of the total missing values in the data set
+
+miss_var_summary(df, order = T)
+# Provide a summary for each variable of the number, percent missings, and cumulative sum of missings of the order of the variables. 
+# By default, it orders by the most missings in each variable.
+
+as_shadow(df)
+# A matrix with missing and non missing values
+
+bind_shadow(df)
+# The initial matrix concatenated with the matrix with missing and non missing values
+```  
+**Pairwise correlations check**  
+```{r}
+library(Hmisc)
+mat <- as.matrix(df)
+newmat <- mat[,1:8]
+rcorr(newmat) 
+# rcorr returns a list with elements r, the matrix of correlations, n the matrix of number of observations used in analyzing
+# each pair of variables, and P, the asymptotic P-values. Pairs with fewer than 2 non-missing values have the r values set to NA. 
+# The diagonals of n are the number of non-NAs for the single variable corresponding to that row and column. P-values are approximated by
+# using the t or F distributions.
+```  
+**Insights about the dataframe named df using the finalfit package**  
+```{r,warnings=FALSE}
+library(finalfit)
+expl <- c("t.pregnant","plasma","bl.press","tr.thick","serum.ins","bmi","diab","age")
+dep <- c("class") 
+
+ff_glimpse(df,dependent=dep,explanatory=expl,digits = 1)
+```  
+**Heatmap of the missing values in the dataframe named df**  
+```{r}
+library(dplyr)
+df %>%
+  missing_plot(dependent = dep,explanatory = expl) 
+# Missing values occurence plot. Heat map of missing values in dataset.
+ 
+df %>%
+  missing_pattern(dependent=dep, explanatory=expl) 
+# Characterise missing data for finalfit models
+```  
+```{r,warning=FALSE}
+df %>%
+  missing_pairs(dependent=dep, explanatory=expl)   
+# Missing values pairs plot. Compare the occurence of missing values in all variables by each other. Suggest limiting the number
+# of variables to a maximum of around six
+```  
+**Summary of the missing values in the dataframe named df**  
+```{r}
+df %>%
+  missing_glimpse(dependent=dep, explanatory=expl)
+```  
+
+**Creating two different datasets to work on**  
+```{r}
+df1 <- df
+# The first dataset that has the missing values df1, which will be imputed
+df2 <- na.omit(df)
+# The second dataset, in which we omit the observations with the missing values 
+str(df2)
+dim(df2)
+summary(df2)
+which(is.na(df2))
+# As expected the result is zero!
+```  
+**Data imputation for variable triceps skinfold thickness(tr.thick)**  
+```{r}
+# Data imputation with mean/median has the following advantages:
+# Easy and fast. 
+# Works well with small numerical datasets.
+# Cons:
+# Doesn’t factor the correlations between features. It only works on the column level.
+# Will give poor results on encoded categorical features (do NOT use it on categorical features).
+# Not very accurate.
+# Doesn’t account for the uncertainty in the imputations.
+# Since there are a few outliers in the variable tr.thick we will impute the missing values using the mean as follows:
+df1$tr.thick[is.na(df1$tr.thick)] <- mean(df1$tr.thick,na.rm=T)
+summary(df1$tr.thick)
+which(is.na(df1$tr.thick))
+# As expected the result is zero!
+```  
+**Data imputation for variable 2-hour serum insulin(serum.ins)**  
+```{r}
+# Since there are loads of outliers in the variable serum.ins we will impute the missing values using the median as follows:
+df1$serum.ins[is.na(df1$serum.ins)] <- median(df1$serum.ins,na.rm=T)
+summary(df1$serum.ins)
+which(is.na(df1$serum.ins))
+# As expected the result is zero!
+```  
+**Data imputation for variable blood pressure (bl.press)**  
+```{r}
+# Since there are loads of outliers in the variable bl.pressure we will impute the missing values using the median as follows:
+df1$bl.press[is.na(df1$bl.press)] <- median(df1$bl.press,na.rm=T)
+summary(df1$bl.press)
+which(is.na(df1$bl.press))
+# As expected the result is zero!
+```  
+**Data imputation for variable body mass index (bmi)**  
+```{r}
+# Since there are loads of outliers in the variable bl.pressure we will impute the missing values using the median as follows:
+df1$bmi[is.na(df1$bmi)] <- median(df1$bmi,na.rm=T)
+summary(df1$bmi)
+which(is.na(df1$bmi))
+# As expected the result is zero!
+```  
+**Data imputation for variable Plasma glucose concentration a 2 hours in an oral glucose tolerance test (plasma)**  
+```{r}
+# Since there aren't outliers in the variable plasma we will impute the missing values using the mean as follows:
+df1$plasma[is.na(df1$plasma)] <- mean(df1$plasma,na.rm=T)
+summary(df1$plasma)
+which(is.na(df1$plasma))
+# As expected the result is zero!
+```  
+**Check that there are no longer missing values**  
+```{r}
+ff_glimpse(df1,dependent=dep,explanatory=expl,digits = 1) 
+# Indeed there aren't any missing values now!
+```  
+**Better picture of the variable's distributions via ggplot (using the reshape2 package as well)**  
+```{r}
+library(reshape2)
+newdf <- melt(df1[,-9])
+ggplot(data = newdf, aes(x = value)) + 
+  stat_density() + 
+  facet_wrap(~variable, scales = "free")
+# Small multiple chart
+```  
+**Linear regression for the imputed dataset (df1)**
+```{r}
+n.class1 <- df1$class
+m <- lm(n.class1~.,data=df1[,1:8])
+summary(m)
+# We observe that there are 4 variables (t.pregnant,plasma,bmi,diab) statistically significant at a=5% significance level 
+```  
+**Predict the probabilities with respect to the response variable**  
+```{r}
+m.probs=predict(m,type="response")
+m.probs[1:10]
+# View the first 10 probabilities
+m.pred=rep(0,768)
+```  
+**Use the regression model (m) to assign the dataset's observations to one of the two classes**  
+```{r}
+# If a predicted probability is less that 0.5 the class is predicted as 0, otherwise 1 (which corresponds to non-diabetes, diabetes respectively)
+m.pred[m.probs>.5] = 1
+table(m.pred,n.class1)
+# The assessment is based on calculated misclassification errors or rates. We can calculate them after the classification and arrange them
+# in a confusion matrix just as above. Thus, we observe that the total misclassification rate is (55+119)/768, which is equal to 22.6%
+# The correct classification rate is it's complementary, 77.4%. The false positive rate is  55/500, which is equal to 11%, while the false negative rate is 119/268, which is equal to 44.4% . In our case, what is of vital importance is the FNR (positive classified as negative) due to the fact that we are interested in the women that in reality will develop diabetes, while we predict that they won't!
+```  
+**Data preprocessing (for the significant variables only!)**  
+```{r}
+t.pregnant <- df1$t.pregnant
+plasma <- df1$plasma
+bmi <- df1$bmi
+diab <- df1$diab
+class <- df1$class
+
+new_df <- data.frame(t.pregnant,plasma,bmi,diab,class)
+# Creating a new dataframe for the significant predictors only plus class, which is the dependent variable
+head(new_df,5)
+tail(new_df,5)
+
+library(tseries)
+jarque.bera.test(df1$t.pregnant) 
+# Reject Ho at 5% level of significance hence no normality 
+shapiro.test(df1$t.pregnant) 
+# Second way, same results
+hist(df1$t.pregnant,col='red',freq=F)
+# Third way to check it visually
+lines(density(df1$t.pregnant))
+
+new_t.pregnant <- log(df1$t.pregnant+1) 
+hist(new_t.pregnant)
+# Still no normality
+jarque.bera.test(new_t.pregnant)
+
+new2_t.pregnant <- sqrt(df1$t.pregnant)
+hist(new2_t.pregnant)
+jarque.bera.test(new2_t.pregnant) 
+# Still no normality
+
+new3_t.pregnant <- (df1$t.pregnant)^(1/3)
+hist(new3_t.pregnant)
+jarque.bera.test(new3_t.pregnant)
+# Still no normal
+# Since there's no normality transformation for the variable t.pregnant that means that the multivariate (due to the fact that each and everyone of the explanatory has to be normal in order for the multivariate to be normal) isn't going to be normal hence we
+# won't have later on at the classification the minimum errors (we would have the minimum errors under the normality assumption!)
+
+boxplot(t.pregnant)
+# Outliers detected
+IQR(t.pregnant)
+# IQR is the range between the first and the third quartiles namely Q1 and Q3: IQR = Q3 – Q1. The data points which fall 
+# below Q1 – 1.5*IQR or above Q3 + 1.5*IQR are outliers.
+
+Q1_t.pregnant <- quantile(t.pregnant, 0.25)
+Q3_t.pregnant <- quantile(t.pregnant, 0.75)
+lower_fence_t.pregnant <- Q1_t.pregnant-(3/2)*IQR(t.pregnant) 
+lower_fence_t.pregnant
+# Values that fall below this value are outliers
+upper_fence_t.pregnant <- Q3_t.pregnant+(3/2)*IQR(t.pregnant) 
+upper_fence_t.pregnant
+# Values that fall above this value are outliers
+range(t.pregnant)
+
+t.pregnant[t.pregnant > 13.5 | t.pregnant < -6.5] <- NA
+# Transforming the values that are above the upper fence and below the lower fence into NAs so we can easily locate them
+
+which(is.na(t.pregnant)) 
+# The indexes of the values of t.pregnant variable that we assigned to be NA (in other words the outliers!)
+summary(t.pregnant)
+# Checking how many outliers in reality there are
+
+new_df[which(is.na(t.pregnant)),]
+# View of the new_df rows that there are the outliers for the explanatory variable t.pregnant 
+
+boxplot(plasma)
+# No outliers detected
+
+boxplot(bmi)
+# Outliers detected
+IQR(bmi)
+Q1_bmi <- quantile(bmi, 0.25)
+Q3_bmi <- quantile(bmi, 0.75)
+lower_fence_bmi <- Q1_bmi-(3/2)*IQR(bmi) 
+lower_fence_bmi
+# Values that fall below this value are outliers
+upper_fence_bmi <- Q3_bmi+(3/2)*IQR(bmi) 
+upper_fence_bmi
+# Values that fall above this value are outliers
+range(bmi)
+
+length(bmi)
+bmi[ bmi > 50.25 | bmi < 13.85] <- NA
+head(bmi,10)
+which(is.na(bmi)) 
+# Which rows of the dataframe will be ignored for the construction of the classification rule later on
+summary(bmi)
+
+new_df[which(is.na(bmi)),]
+
+boxplot(diab)
+# Outliers detected
+IQR(diab)
+Q1_diab <- quantile(diab, 0.25)
+Q3_diab <- quantile(diab, 0.75)
+lower_fence_diab <- Q1_diab-(3/2)*IQR(diab) 
+lower_fence_diab
+# Values that fall below this value are outliers
+upper_fence_diab <- Q3_diab+(3/2)*IQR(diab) 
+upper_fence_diab
+# Values that fall above this value are outliers
+range(diab)
+
+diab[ diab > 1.2 | diab < -0.33 ] <- NA
+which(is.na(diab))
+summary(diab)
+
+new_df[which(is.na(diab)),]
+
+rows_to_be_ignored <- c(which(is.na(t.pregnant)),which(is.na(bmi)),which(is.na(diab)))
+rows_to_be_ignored
+
+df_without_outliers <- new_df[-c(rows_to_be_ignored),]
+dim(df_without_outliers)
+
+str(df_without_outliers)
+
+which(is.na(df_without_outliers))
+# As expected, zero values hence the outliers have been handled. Thus, we are ready for the classification
+```  
+**Usual correlation check for the (imputed) dataset that has no longer outliers (df_without_outliers)**  
+```{r}
+cor(df_without_outliers)
+# We observe that the correlation values are small, hence the classification is going to be even harder!
+```  
+**Linear regression for the imputed dataset (df_without_outliers)**
+```{r}
+n.class <- df_without_outliers$class
+m1 <- lm(n.class~.,data=df_without_outliers[,1:4])
+summary(m1)
+# We observe that there are 4 variables (t.pregnant,plasma,bmi,diab) statistically significant at a=5% significance level 
+```  
+**Predict the probabilities with respect to the response variable**  
+```{r}
+m1.probs=predict(m1,type="response")
+m1.probs[1:10]
+# View the first 10 probabilities
+m1.pred=rep(0,728)
+```  
+**Use the regression model (m1) to assign the dataset's observations to one of the two classes**  
+```{r}
+# If a predicted probability is less that 0.5 the class is predicted as 0, otherwise 1 (which corresponds to non-diabetes, diabetes respectively)
+m1.pred[m1.probs>.5] = 1
+table(m1.pred,n.class)
+# The assessment is based on calculated misclassification errors or rates. We can calculate them after the classification and arrange them
+# in a confusion matrix just as above. Thus, we observe that the total misclassification rate is (51+110)/728, which is equal to 22.1%
+# The correct classification rate is it's complementary, 77.9%. The false positive rate is 51/486, which is equal to 10.4%, while the false negative rate is 110/242, which is equal to 47.4%. In our case, what is of vital importance is the FNR (positive classified as negative) due to the fact that we are interested in the women that in reality will develop diabetes, while we predict that they won't!
+```  
+**Splitting the dataset to account for bias using package caret**  
+```{r}
+# To detect a machine learning model behavior, we need to use observations that aren’t used in the training process. Otherwise, the evaluation of the model would be biased. Instead of using the whole data set we will use the train-test split. The train-test split is a technique for evaluating the performance of a machine learning algorithm. It can be used for classification or regression problems and can be used for any supervised learning algorithm. The procedure involves taking a dataset and dividing it into two subsets. The first subset is used to fit the model and is referred to as the training dataset. The second subset is not used to train the model; instead, the input element of the dataset is provided to the model, then predictions are made and compared to the expected values. This second dataset is referred to as the test dataset.
+# Train Dataset: Used to fit the machine learning model.
+# Test Dataset: Used to evaluate the fit machine learning model.
+# The objective is to estimate the performance of the machine learning model on new data: data not used to train the model. This is how we expect to use the model in practice. Namely, to fit it on available data with known inputs and outputs, then make predictions on new examples in the future where we do not have the expected output or target values. The train-test procedure is appropriate when there is a sufficiently large dataset available. There is no optimal split percentage, we will use a common split, such as 70(train)-30(test):
+library(caret)
+set.seed(50)
+train.index <- createDataPartition(n.class, p = .7, list = F)
+# By default, createDataPartition does a stratified random split of the data.
+train_df_wth_out <- df_without_outliers[ train.index,]
+test_df_wth_out  <- df_without_outliers[-train.index,]
+```  
+**Linear regression for the training dataset (train_df1)**
+```{r}
+m2 <- lm(n.class~.,data=df_without_outliers[,1:4] ,subset=as.numeric(rownames(train_df_wth_out)))
+# Subset refers to the rows we will pick from the entire dataset
+summary(m2)
+```  
+**Predict the probabilities with respect to the response variable**  
+```{r}
+m2.probs=predict(m2,test_df_wth_out,type="response")
+m2.probs[1:5]
+# View the first 5 probabilities
+m2.pred=rep(0,218)
+```  
+**Use the linear regression model (m2) to assign the test dataset (test_df_wth_out) observations to one of the two classes**  
+```{r}
+# If a predicted probability is less that 0.5 the class is predicted as 0, otherwise 1 (which correspond to non-diabetes, diabetes respectively)
+m2.pred[m2.probs>.5] = 1
+new_class <- test_df_wth_out$class
+mean(m2.pred!=new_class)
+# The total misclassification error
+table(m2.pred,new_class)
+# We observe that the total misclassification rate is (23+25)/218, which is equal to 24.3% and the correct classification rate is it's complementary, in other words 75.7%. Now, the FPR is 23/144, which is equal to 15.9%, while the FNR is 25/74, which is equal to 33.7%
+```  
+**Comments on the linear regression model**  
+```{r}
+summary(m2.probs)
+# We observe that there are negative values as well as values greater than 1, fact that indicates that the linear model isn't the most
+# appropriate one.
+boxplot(m2.probs)
+# We observe the same conclusions as above hence the logistic model seems as a more appropriate fit, in comparison to the linear one.
+```  
+**Fitting a logistic regression model**  
+```{r}
+m3 <- glm(n.class~.,data=df_without_outliers[,1:4],subset=as.numeric(rownames(train_df_wth_out)),family=binomial)
+summary(m3)
+```  
+**Predict the probabilities with respect to the response variable**  
+```{r}
+m3.probs=predict(m3,test_df_wth_out,type="response")
+m3.probs[1:5]
+# View the first 5 probabilities
+m3.pred=rep(0,218)
+```  
+**Use the logistic regression model (m3) to assign the test dataset (test_df_wth_out) observations to one of the two classes**  
+```{r}
+# If a predicted probability is less that 0.5 the class is predicted as 0, otherwise 1 (which correspond to non-diabetes, diabetes respectively)
+m3.pred[m3.probs>.5] = 1
+# Threshold at 0.5
+mean(m3.pred!=new_class)
+# The total misclassification rate
+table(m3.pred,new_class)
+# We observe that the total misclassification rate is (23+21)/218, which is equal to 20.1% and the correct classification rate is the complementary, in other words it is 79.9%. Now, the FPR is 23/144, which is equal to 15.9% while the FNR is 21/74, which is equal to 28.3%
+```  
+**Comments on the logistic regression model**  
+```{r}
+summary(m3.probs)
+boxplot(m3.probs)
+# We observe that all values lie in the interval (0,1) which is more appropriate in our case. Slight improvements observed in comparison  # with the linear regression model!
+```  
+**Decreasing the FNR**  
+```{r}
+m4.probs <- predict(m3,test_df_wth_out,type="response")
+m4.probs[1:5]
+# View the first 5 probabilities
+m4.pred=rep(0,218)
+m4.pred[m4.probs>.3] = 1
+# Threshold at 0.3
+mean(m4.pred!=new_class)
+# The total misclassification rate
+table(m4.pred,new_class)
+# We observe that the FNR is 9/74, which is equal to 12.1% ( while before it was 28.3% !)
+```  
+**Further decreasing the FNR**  
+```{r}
+m5.probs <- predict(m3,test_df_wth_out,type="response")
+m5.probs[1:5]
+# View the first 5 probabilities
+m5.pred=rep(0,218)
+m5.pred[m5.probs>.1] = 1
+# Setting the threshold at 0.1
+table(m5.pred,new_class)
+# We observe that the FNR is 1/74, which is equal to 0.01%! Now ,the total misclassification rate is (91+1)/218, which is equal to 42.2%
+```  
+**Linear Discriminant Analysis**  
+```{r}
+library(MASS)
+lda.fit <- lda(n.class~.,data=df_without_outliers[,1:4],subset=as.numeric(rownames(train_df_wth_out)) )
+lda.fit
+plot(lda.fit)
+# The plot of scores of train data set on the (one in this case) linear discriminant functions 
+lda.pred=predict(lda.fit, test_df_wth_out)
+names(lda.pred)
+lda.class=lda.pred$class
+table(lda.class,new_class)
+# We observe that the total misclassification rate is (23+24)/218, which is equal to 21.5%. The FNR is 24/74, which is equal to 32.4% and 
+# the FPR is 23/144, which is equal to 15.9%
+mean(lda.class==new_class)
+# The correct test classification rate (which is the complementary of the total missclassification rate)
+mean(lda.class!=new_class)
+# The total misclassification rate
+```  
+**Second way using package hmeasure**  
+```{r}
+library(hmeasure)
+lda.counts <- misclassCounts(lda.class,new_class)
+# Computes a set of classification performance metrics that rely on a set of predicted labels and a set of true labels as input.
+# All the measures computed here are scalar summaries of the confusion matrix, which consists of the number of True Positives (TPs),
+# False Positives (FPs), True Negatives (TNs), and False Negatives (FNs). The most common such summary is the Error Rate (ER). 
+# Additionally the following metrics are reported: the True Positive Rate (TPR) and the False Positive Rate (FPR), Sensitivity 
+# (same as TPR) versus Specificity (given by 1-FPR), and yet another such pair is Precision versus Recall (same as Sensitivity). 
+# Finally, the measure and the Youden index are scalar measures that attempt to take a more balanced view of the two different objectives 
+# than ER does. The former is given by the harmonic mean of Precision and Recall, and the latter by Sens+Spec-1.
+lda.counts$conf.matrix
+print(lda.counts$metrics,digits=3)
+```  
+**Quadratic Discriminant Analysis**  
+```{r}
+qda.fit=qda(n.class~.,data=df_without_outliers[,1:4],subset=as.numeric(rownames(train_df_wth_out)) )
+qda.fit
+qda.class=predict(qda.fit,test_df_wth_out)$class
+table(qda.class,new_class)
+# We observe that the total misclassification rate is (23+26)/218, which is equal to 22.4%. The FNR is 26/74, which is equal to 35.1% and 
+# the FPR is 23/144, which is equal to 15.9%
+mean(qda.class==new_class)
+# The correct test classification rate
+mean(qda.class!=new_class)
+# The total classification rate
+```  
+**Second way using package hmeasure**  
+```{r}
+qda.counts <- misclassCounts(qda.class,new_class)
+qda.counts$conf.matrix
+print(qda.counts$metrics,digits = 3)
+
+HMeasure(new_class,test_df_wth_out[,1:4], severity.ratio = NA, threshold=0.5, level=0.95)$metrics
+# The HMeasure function outputs an object of class "hmeasure", with one field named "metrics"that reports several performance metrics in the form of a data frame with one row per classifier, and an attribute named "data" which preserves useful information (such as the empirical scoring distributions) for plotting purposes. The H-measure naturally requires as input a severity ratio, which represents how much more severe misclassifying a class 0 instance is than misclassifying a class 1 instance. Formally, this determines the mode of the prior over costs that underlies the H-measure (see package vignette or references for more information). We may write SR = c_0/c_1, where c_0 > 0 is the cost of misclassifying a class 0 datapoint as class 1. It is sometimes more convenient to consider instead the normalised cost c = c_0/(c_0 + c_1), so that SR = c/(1-c) where c is in [0,1]. For instance, severity.ratio = 2 implies that a False Positive costs twice as much as a False Negative. By default the severity ratio is set to be reciprocal of relative class frequency, i.e., severity.ratio = pi1/pi0, so that misclassifying the rare class is considered a graver mistake. See Hand 2012 for a more detailed motivation of this default. The metrics reported can be broken down into two types. The first type consists of metrics that measure the match between a set of predicted labels and the true labels. We obtain these predictions using the scores provided and employing a user-specified threshold (or thresholds, one per classifier), if provided, otherwise a default of 0.5. See help(misclassCounts) for a list of the metrics computed. The second type of measures are aggregate measures of performance that do not rely on the user to specify the threshold, and instead operate directly on the classification scores themselves. In this sense, they are more useful for performance comparisons across classifiers and datasets. The aggregate metrics currently reported include: the Area under the ROC Curve (AUC), the H-measure, the Area under the Convex Hull of the ROC Curve (AUCH), the Gini coefficient, the Kolmogorov-Smirnoff (KS) statistic, the Minimum Weighted Loss (MWL), the Minimum Total Loss (MTL), as well as the Sensitivity at 95% Specificity ("Sens95"), and the Specificity at 95% Sensitivity ("Spec95"). For these latter measures, a 95% level is the default, but alternative or additional values may be specified using the "level" argument. The package vignette contains a very a detailed explanation of each of the above metrics, and their relationships with each other.
+```  
+**KNN**  
+```{r}
+library(class)
+set.seed(20)
+train.class=train_df_wth_out$class  
+knn.pred1=knn(train_df_wth_out,test_df_wth_out,train.class,k=1)
+# Number of neighbours considered k=1
+table(knn.pred1,new_class)
+# We observe that the total misclassification rate is (30+32)/218, which is equal to 28.4%. The FNR is 32/74, which is equal to 43.2% while the FPR is 30/144, which is equal to 20.8%
+mean(knn.pred1==new_class)
+# The correct classification rate
+mean(knn.pred1!=new_class)
+# The total misclassification rate
+
+
+knn.pred2=knn(train_df_wth_out,test_df_wth_out,train.class,k=3)
+# Number of neighbours considered k=3
+table(knn.pred2,new_class)
+# We observe that the total misclassification rate is (24+27)/218, which is equal to 23.3%. The FNR is 27/74, which is equal to 36.4%  while the FPR is 24/144, which is equal to 16.6%
+mean(knn.pred2==new_class)
+# The correct classification rate
+mean(knn.pred2!=new_class)
+# The total misclassification rate
+```  
+**Second dataset (df2) analysis**  
+```{r}
+head(df2,5)
+which(is.na(df2))
+# Zero, as expected there are no missing values in the dataframe
+summary(df2)
+cor(df2)
+dim(df2)
+# The correlation values are small hence the classification is going to be even harder! 
+```  
+**Pairwise colorful plots**  
+```{r}
+cols2 <- character(nrow(df2))
+cols2[] <- "black"
+cols2[df2$class %in% c(0,1)] <- c("green","red")
+pairs(df2[,-9],col=cols2)
+# We observe that there's no conspicuous discrimination available
+```  
+**Data visualization using ggplot**  
+```{r}
+library(reshape2)
+newdataframe <- melt(df2[,-9])
+ggplot(data = newdataframe, aes(x = value)) + 
+  stat_density() + 
+  facet_wrap(~variable, scales = "free")
+# Small multiple chart
+```  
+**Linear regression for the second dataset (df2)**
+```{r}
+class2 <- df2$class
+model1 <- lm(class2~.,data=df2[,1:8])
+summary(model1)
+# We observe that there are 4 variables (plasma,bmi,diab,age) statistically significant at a=5% significance level
+plasma2 <- df2$plasma
+bmi2 <- df2$bmi
+diab2 <- df2$diab
+age2 <- df2$age
+class2 <- df2$class
+new_df2 <- data.frame(plasma2,bmi2,diab2,age2,class2)
+```  
+**Data preprocessing for the significant explanatory variables of df2**  
+```{r}
+jarque.bera.test(new_df2$plasma2) 
+# Reject Ho at 5% level of significance hence no normality 
+shapiro.test(new_df2$plasma2) 
+# Second way, same results
+hist(new_df2$plasma2,col='red',freq=F)
+# Third way to check it visually
+lines(density(new_df2$plasma2))
+# Since there's no normality transformation for the variable t.pregnant that means that the multivariate (due to the fact that each and everyone of the explanatory has to be normal in order for the multivariate to be normal) isn't going to be normal hence we won't have later on at the classification the minimum errors (we would have the minimum errors under the normality assumption!)
+
+
+boxplot(plasma2)
+# No outliers detected
+boxplot(bmi2)
+# Outliers detected
+IQR(bmi2)
+Q1_bmi2 <- quantile(bmi2, 0.25)
+Q3_bmi2 <- quantile(bmi2, 0.75)
+lower_fence_bmi2 <- Q1_bmi2-(3/2)*IQR(bmi2) 
+lower_fence_bmi2
+# Values that fall below this value are outliers
+upper_fence_bmi2 <- Q3_bmi2+(3/2)*IQR(bmi2) 
+upper_fence_bmi2
+# Values that fall above this value are outliers
+range(bmi2)
+
+bmi2[bmi2 > 50.15 | bmi2 <15.35 ] <- NA
+# Transforming the values that are above the upper fence and below the lower fence into NAs so we can easily locate them
+
+which(is.na(bmi2)) 
+# The indexes of the values of diab2 variable that we assigned to be NA (in other words the outliers!)
+summary(bmi2)
+# Checking how many outliers in reality there are
+
+new_df2[which(is.na(bmi2)),]
+# View of the new_df2 rows that there are the outliers for the explanatory variable bmi2 
+
+boxplot(diab2)
+# Outliers detected
+IQR(diab2)
+Q1_diab2 <- quantile(diab2, 0.25)
+Q3_diab2 <- quantile(diab2, 0.75)
+lower_fence_diab2 <- Q1_diab2-(3/2)*IQR(diab2) 
+lower_fence_diab2
+# Values that fall below this value are outliers
+upper_fence_diab2 <- Q3_diab2+(3/2)*IQR(diab2) 
+upper_fence_diab2
+# Values that fall above this value are outliers
+range(diab2)
+
+diab2[diab2 > 1.312875 | diab2 < -0.356125  ] <- NA
+# Transforming the values that are above the upper fence and below the lower fence into NAs so we can easily locate them
+
+which(is.na(diab2)) 
+# The indexes of the values of diab2 variable that we assigned to be NA (in other words the outliers!)
+summary(diab2)
+# Checking how many outliers in reality there are
+
+new_df2[which(is.na(diab2)),]
+# View of the new_df2 rows that there are the outliers for the explanatory variable diab2
+
+boxplot(age2)
+# Outliers detected
+IQR(age2)
+Q1_age2 <- quantile(age2, 0.25)
+Q3_age2 <- quantile(age2, 0.75)
+lower_fence_age2 <- Q1_age2-(3/2)*IQR(age2) 
+lower_fence_age2
+# Values that fall below this value are outliers
+upper_fence_age2 <- Q3_age2+(3/2)*IQR(age2) 
+upper_fence_age2
+# Values that fall above this value are outliers
+range(age2)
+
+age2[age2 > 55.5 | age2 < 3.5  ] <- NA
+# Transforming the values that are above the upper fence and below the lower fence into NAs so we can easily locate them
+
+which(is.na(age2)) 
+# The indexes of the values of age2 variable that we assigned to be NA (in other words the outliers!)
+summary(age2)
+# Checking how many outliers in reality there are
+
+new_df2[which(is.na(age2)),]
+# View of the new_df2 rows that there are the outliers for the explanatory variable age2
+
+rows_to_be_ignored2 <- c(which(is.na(bmi2)),which(is.na(diab2)),which(is.na(age2)))
+rows_to_be_ignored2
+
+df2_without_outliers <- new_df2[-c(rows_to_be_ignored2),]
+dim(df2_without_outliers)
+
+str(df2_without_outliers)
+# 363 obs
+
+which(is.na(df2_without_outliers))
+# As expected, zero values hence the outliers have been handled. Thus, we are ready for the classification
+
+unique(rows_to_be_ignored2)
+# Check that we got the right amount of data
+
+length(rows_to_be_ignored2)
+length(unique(rows_to_be_ignored2))
+# As expected the difference between the rows_to_be_ignored2 and the unique(rows_to_be_ignored2) is 2
+```  
+**Data visualization after the data processing**  
+```{r}
+library(reshape2)
+newdataframe2 <- melt(df2_without_outliers[,-5])
+ggplot(data = newdataframe2, aes(x = value)) + 
+  stat_density() + 
+  facet_wrap(~variable, scales = "free")
+# Small multiple chart
+```  
+**Splitting the dataset (df2) to account for bias using package caret**  
+```{r}
+library(caret)
+set.seed(50)
+n.class2 <- df2_without_outliers$class2
+train.index2 <- createDataPartition(n.class2, p = .7, list = F)
+# By default, createDataPartition does a stratified random split of the data.
+train2_df_wth_out <- df2_without_outliers[ train.index2,]
+test2_df_wth_out  <- df2_without_outliers[-train.index2,]
+```  
+**Linear regression for the training dataset (train2_df1)**
+```{r}
+model2 <- lm(n.class2~.,data=df2_without_outliers[,1:4] ,subset=as.numeric(rownames(train2_df_wth_out)))
+# Subset refers to the rows we will pick from the entire dataset
+summary(model2)
+```  
+**Predict the probabilities with respect to the response variable**  
+```{r}
+model2.probs=predict(model2,test2_df_wth_out,type="response")
+model2.probs[1:5]
+# View the first 5 probabilities
+model2.pred=rep(0,108)
+```  
+**Use the linear regression model (model2) to assign the test dataset (test2_df_wth_out) observations to one of the two classes**  
+```{r}
+# If a predicted probability is less that 0.5 the class is predicted as 0, otherwise 1 (which correspond to non-diabetes, diabetes respectively)
+model2.pred[model2.probs>.5] = 1
+new_class2 <- test2_df_wth_out$class
+mean(model2.pred!=new_class2)
+# The total misclassification error
+table(model2.pred,new_class2)
+```  
+**Comments on the linear regression model**  
+```{r}
+summary(model2.probs)
+# We observe that there are negative values as well as values greater than 1, fact that indicates that the linear model isn't the most
+# appropriate one.
+boxplot(model2.probs)
+# We observe the same conclusions as above hence the logistic model seems as a more appropriate fit, in comparison to the linear one.
+```  
+**Fitting a logistic regression model**  
+```{r}
+model3 <- glm(n.class2~.,data=df2_without_outliers[,1:4],subset=as.numeric(rownames(train2_df_wth_out)),family=binomial)
+summary(model3)
+```  
+**Predict the probabilities with respect to the response variable**  
+```{r}
+model3.probs=predict(model3,test2_df_wth_out,type="response")
+model3.probs[1:5]
+# View the first 5 probabilities
+model3.pred=rep(0,108)
+```  
+**Use the logistic regression model (model3) to assign the test dataset (test2_df_wth_out) observations to one of the two classes**  
+```{r}
+# If a predicted probability is less that 0.5 the class is predicted as 0, otherwise 1 (which correspond to non-diabetes, diabetes respectively)
+model3.pred[model3.probs>.5] = 1
+# Threshold at 0.5
+mean(model3.pred!=new_class2)
+# The total misclassification rate
+table(model3.pred,new_class2)
+# We observe that the total misclassification rate is (23+21)/218, which is equal to 20.1% and the correct classification rate is the complementary, in other words it is 79.9%. Now, the FPR is 23/144, which is equal to 15.9% while the FNR is 21/74, which is equal to 28.3%
+```  
+**Comments on the logistic regression model**  
+```{r}
+summary(m3.probs)
+boxplot(m3.probs)
+# We observe that all values lie in the interval (0,1) which is more appropriate in our case. Slight improvements observed in comparison  with the linear regression model!
+```  
+**Linear Discriminant Analysis**  
+```{r}
+library(MASS)
+lda.fit2 <- lda(n.class2~.,data=df2_without_outliers[,1:4],subset=as.numeric(rownames(train2_df_wth_out)) )
+lda.fit2
+plot(lda.fit2)
+# The plot of scores of train data set on the (one in this case) linear discriminant functions 
+lda.pred2=predict(lda.fit2, test2_df_wth_out)
+names(lda.pred2)
+lda.class2=lda.pred2$class
+table(lda.class2,new_class2)
+# We observe that the total misclassification rate is (23+24)/218, which is equal to 21.5%. The FNR is 24/74, which is equal to 32.4% and 
+# the FPR is 23/144, which is equal to 15.9%
+mean(lda.class2==new_class2)
+# The correct test classification rate (which is the complementary of the total missclassification rate)
+mean(lda.class2!=new_class2)
+# The total misclassification rate
+```  
+**Quadratic Discriminant Analysis**  
+```{r}
+qda.fit2=qda(n.class2~.,data=df2_without_outliers[,1:4],subset=as.numeric(rownames(train2_df_wth_out)) )
+qda.fit2
+qda.class2=predict(qda.fit2,test2_df_wth_out)$class
+table(qda.class2,new_class2)
+# We observe that the total misclassification rate is (23+26)/218, which is equal to 22.4%. The FNR is 26/74, which is equal to 35.1% and 
+# the FPR is 23/144, which is equal to 15.9%
+mean(qda.class2==new_class2)
+# The correct test classification rate
+mean(qda.class2!=new_class2)
+# The total classification rate
+```  
+**KNN**  
+```{r}
+library(class)
+set.seed(20)
+train.class2=train2_df_wth_out$class  
+knn2.pred=knn(train2_df_wth_out,test2_df_wth_out,train.class2,k=1)
+# Number of neighbours considered k=1
+table(knn2.pred,new_class2)
+# We observe that the total misclassification rate is (30+32)/218, which is equal to 28.4%. The FNR is 32/74, which is equal to 43.2% while the FPR is 30/144, which is equal to 20.8%
+mean(knn2.pred==new_class2)
+# The correct classification rate
+mean(knn2.pred!=new_class2)
+# The total misclassification rate
+```  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
